@@ -292,6 +292,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
 </head>
 <body>
 
+<!-- ══ LOCK SCREEN ══ -->
+<div id="lock-screen" style="position:fixed;inset:0;z-index:500;background:#080810;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="font-family:'Bebas Neue';font-size:52px;letter-spacing:6px;color:#c8ff00;">GYMCOACH</div>
+  <div style="font-size:12px;color:#666678;text-transform:uppercase;letter-spacing:3px;margin-bottom:24px;">Romain · v1.5.0</div>
+  <div id="lock-icon" style="width:80px;height:80px;border-radius:50%;background:#111118;border:2px solid #22222e;display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;transition:all .2s;" onclick="authenticate()">
+    🔒
+  </div>
+  <div id="lock-msg" style="font-size:13px;color:#666678;text-align:center;max-width:240px;line-height:1.6;">
+    Appuie pour déverrouiller
+  </div>
+  <div id="lock-btn" style="margin-top:8px;">
+    <button onclick="authenticate()" style="background:#c8ff00;color:#030810;font-weight:700;font-size:14px;border:none;border-radius:14px;padding:14px 32px;cursor:pointer;font-family:'DM Sans';">
+      Face ID / Touch ID
+    </button>
+  </div>
+</div>
+
 <div id="splash">
   <div class="s-logo">GYMCOACH</div>
   <div class="s-sub">Prêt à tout donner, Romain ? 💪</div>
@@ -510,6 +527,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:500;color:#f0f0f0;">Médicaments &amp; doses</div>
             <div style="font-size:11px;color:#666678;margin-top:2px;">Modifier le traitement et l'intervalle</div>
+          </div>
+          <span style="color:#666678;font-size:18px;">›</span>
+        </div>
+        <div onclick="if(confirm('Remettre Face ID à zéro ?'))resetBiometric()" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-top:1px solid #22222e;transition:background .15s;" onmouseover="this.style.background='#1a1a24'" onmouseout="this.style.background=''">
+          <span style="font-size:20px;">🔒</span>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:500;color:#f0f0f0;">Réinitialiser Face ID</div>
+            <div style="font-size:11px;color:#666678;margin-top:2px;">Reconfigurer l'authentification</div>
           </div>
           <span style="color:#666678;font-size:18px;">›</span>
         </div>
@@ -863,9 +888,162 @@ function renderWater(){
 // ══════════════════════════════════════════════
 // MEDS — state (all declared at top level)
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// FACE ID / TOUCH ID — WebAuthn API
+// ══════════════════════════════════════════════
+const AUTH_KEY = 'gymcoach_auth_credential';
+let isAuthenticated = false;
+
+async function authenticate() {
+  const lockMsg = document.getElementById('lock-msg');
+  const lockIcon = document.getElementById('lock-icon');
+
+  // If already authenticated this session
+  if (isAuthenticated) { unlockApp(); return; }
+
+  // Check if WebAuthn is supported
+  if (!window.PublicKeyCredential) {
+    // No biometric support - fallback to simple PIN or direct unlock
+    lockMsg.textContent = 'Biometrie non disponible sur cet appareil';
+    setTimeout(() => unlockApp(), 1500);
+    return;
+  }
+
+  try {
+    const savedCred = localStorage.getItem(AUTH_KEY);
+
+    if (!savedCred) {
+      // First time - register Face ID
+      await registerBiometric();
+    } else {
+      // Authenticate with saved credential
+      await verifyBiometric(JSON.parse(savedCred));
+    }
+  } catch(e) {
+    console.log('Auth error:', e.message);
+    if (e.name === 'NotAllowedError') {
+      lockMsg.textContent = 'Authentification annulée';
+    } else if (e.name === 'InvalidStateError') {
+      // Credential already registered, try verify
+      try {
+        const saved = localStorage.getItem(AUTH_KEY);
+        if (saved) await verifyBiometric(JSON.parse(saved));
+      } catch(e2) {
+        lockMsg.textContent = 'Erreur — appuie à nouveau';
+      }
+    } else {
+      lockMsg.textContent = 'Appuie à nouveau pour réessayer';
+    }
+  }
+}
+
+async function registerBiometric() {
+  const lockMsg = document.getElementById('lock-msg');
+  lockMsg.textContent = 'Configuration Face ID...';
+
+  const challenge = new Uint8Array(32);
+  crypto.getRandomValues(challenge);
+
+  const userId = new Uint8Array(16);
+  crypto.getRandomValues(userId);
+
+  const credential = await navigator.credentials.create({
+    publicKey: {
+      challenge,
+      rp: { name: 'GymCoach', id: location.hostname },
+      user: {
+        id: userId,
+        name: 'romain',
+        displayName: 'Romain'
+      },
+      pubKeyCredParams: [
+        { alg: -7,  type: 'public-key' }, // ES256
+        { alg: -257, type: 'public-key' } // RS256
+      ],
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform', // forces Face ID / Touch ID
+        userVerification: 'required',
+        residentKey: 'preferred'
+      },
+      timeout: 60000,
+      attestation: 'none'
+    }
+  });
+
+  // Save credential ID for future verifications
+  const credData = {
+    id: credential.id,
+    rawId: Array.from(new Uint8Array(credential.rawId)),
+    type: credential.type
+  };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(credData));
+  lockMsg.textContent = 'Face ID configuré !';
+  setTimeout(() => unlockApp(), 800);
+}
+
+async function verifyBiometric(savedCred) {
+  const lockMsg = document.getElementById('lock-msg');
+  lockMsg.textContent = 'Vérification...';
+
+  const challenge = new Uint8Array(32);
+  crypto.getRandomValues(challenge);
+
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge,
+      rpId: location.hostname,
+      allowCredentials: [{
+        id: new Uint8Array(savedCred.rawId),
+        type: 'public-key',
+        transports: ['internal']
+      }],
+      userVerification: 'required',
+      timeout: 60000
+    }
+  });
+
+  if (assertion) {
+    unlockApp();
+  }
+}
+
+function unlockApp() {
+  isAuthenticated = true;
+  const lock = document.getElementById('lock-screen');
+  if (lock) {
+    lock.style.opacity = '0';
+    lock.style.transition = 'opacity .4s';
+    setTimeout(() => lock.remove(), 400);
+  }
+}
+
+function resetBiometric() {
+  localStorage.removeItem(AUTH_KEY);
+  isAuthenticated = false;
+  location.reload();
+}
+
+// Auto-trigger auth on load (with small delay for polish)
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    // Check if biometrics available and show appropriate UI
+    if (!window.PublicKeyCredential) {
+      document.getElementById('lock-msg').textContent = 'Appuie pour entrer';
+      document.getElementById('lock-btn').querySelector('button').textContent = 'Entrer';
+    } else {
+      // Check if first time or returning user
+      const saved = localStorage.getItem(AUTH_KEY);
+      if (!saved) {
+        document.getElementById('lock-msg').textContent = 'Configure Face ID pour sécuriser ton app';
+        document.getElementById('lock-btn').querySelector('button').textContent = 'Configurer Face ID';
+      }
+    }
+  }, 300);
+});
+
 // App version & build info
-const APP_VERSION = '1.4.1';
-const BUILD_DATE  = '2026-05-19 · 21:12:05 UTC';
+const APP_VERSION = '1.5.0';
+const BUILD_DATE  = '2026-05-19 · 21:47:24 UTC';
 
 // Auto-detect shift from ISO week number
 // Odd week = morning (AM 6h-14h), Even week = afternoon (PM 14h-22h)
