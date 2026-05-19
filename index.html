@@ -295,6 +295,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
 <div id="splash">
   <div class="s-logo">GYMCOACH</div>
   <div class="s-sub">Prêt à tout donner, Romain ? 💪</div>
+  <div style="font-size:10px;color:#333344;margin-top:4px;letter-spacing:1px;">v1.4.0</div>
   <div class="s-bar"><div class="s-fill"></div></div>
 </div>
 
@@ -482,6 +483,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
         <div class="ni">Objectif protéines : <b>~140 g/jour</b></div>
         <div class="ni">Priorité : <b>poulet, œufs, fromage blanc, lentilles</b></div>
         <div class="ni">Eau : <b>2.5 L minimum/jour</b></div>
+      </div>
+
+      <!-- ── VERSION ── -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">ℹ️ À propos</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:13px;color:var(--muted);">Version</span>
+          <span style="font-family:'Bebas Neue';font-size:18px;color:var(--accent);letter-spacing:1px;" id="app-version-lbl"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:13px;color:var(--muted);">Dernière mise en ligne</span>
+          <span style="font-size:12px;color:var(--text);text-align:right;" id="app-build-lbl"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+          <span style="font-size:13px;color:var(--muted);">Développée par</span>
+          <span style="font-size:12px;color:var(--text);">Claude ✦ Anthropic</span>
+        </div>
       </div>
 
       <!-- ── MENU PARAMÈTRES (boutons) ── -->
@@ -845,6 +863,10 @@ function renderWater(){
 // ══════════════════════════════════════════════
 // MEDS — state (all declared at top level)
 // ══════════════════════════════════════════════
+// App version & build info
+const APP_VERSION = '1.4.0';
+const BUILD_DATE  = '2026-05-19 · 21:03:38 UTC';
+
 // Auto-detect shift from ISO week number
 // Odd week = morning (AM 6h-14h), Even week = afternoon (PM 14h-22h)
 function getAutoShift() {
@@ -1463,6 +1485,11 @@ setTimeout(()=>{
   document.getElementById('splash').classList.add('hide');
   document.getElementById('app').style.opacity='1';
   applySettingsToUI();
+  // Set version labels
+  const vl = document.getElementById('app-version-lbl');
+  const bl = document.getElementById('app-build-lbl');
+  if (vl) vl.textContent = APP_VERSION;
+  if (bl) bl.textContent = BUILD_DATE;
   renderNtfyCard();
   // Auto-detect and show correct shift
   shift = getAutoShift();
