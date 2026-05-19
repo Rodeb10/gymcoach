@@ -864,8 +864,8 @@ function renderWater(){
 // MEDS — state (all declared at top level)
 // ══════════════════════════════════════════════
 // App version & build info
-const APP_VERSION = '1.4.0';
-const BUILD_DATE  = '2026-05-19 · 21:03:38 UTC';
+const APP_VERSION = '1.4.1';
+const BUILD_DATE  = '2026-05-19 · 21:12:05 UTC';
 
 // Auto-detect shift from ISO week number
 // Odd week = morning (AM 6h-14h), Even week = afternoon (PM 14h-22h)
@@ -1533,12 +1533,59 @@ const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
 const manifestURL = URL.createObjectURL(blob);
 document.querySelector('link[rel="manifest"]').href = manifestURL;
 
-// Service Worker : activé uniquement quand l'app est hébergée sur Netlify
-// (le fichier sw.js doit exister à la racine du serveur)
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.includes('localhost')) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log('✅ SW actif'))
-    .catch(() => {}); // silencieux si sw.js absent
+// Service Worker with auto-update detection
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("/sw.js").then(function(reg) {
+    document.addEventListener("visibilitychange", function() {
+      if (!document.hidden) reg.update();
+    });
+    reg.addEventListener("updatefound", function() {
+      var sw = reg.installing;
+      sw.addEventListener("statechange", function() {
+        if (sw.state === "installed" && navigator.serviceWorker.controller) {
+          showUpdateBanner();
+        }
+      });
+    });
+  }).catch(function(e) { console.log("SW:", e); });
+  var refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", function() {
+    if (!refreshing) { refreshing = true; window.location.reload(); }
+  });
+}
+
+function showUpdateBanner() {
+  var old = document.getElementById("update-banner");
+  if (old) old.remove();
+  var b = document.createElement("div");
+  b.id = "update-banner";
+  b.style.position = "fixed"; b.style.bottom = "90px";
+  b.style.left = "50%"; b.style.transform = "translateX(-50%)";
+  b.style.width = "calc(100% - 28px)"; b.style.maxWidth = "400px";
+  b.style.background = "#1a1a24";
+  b.style.border = "1px solid rgba(200,255,0,.4)";
+  b.style.borderRadius = "16px"; b.style.padding = "14px 16px";
+  b.style.zIndex = "100"; b.style.display = "flex";
+  b.style.gap = "12px"; b.style.alignItems = "center";
+  b.style.boxShadow = "0 8px 32px rgba(0,0,0,.6)";
+  var ico = document.createElement("span"); ico.textContent = "x"; ico.style.fontSize = "22px";
+  var info = document.createElement("div"); info.style.flex = "1";
+  var t1 = document.createElement("div"); t1.textContent = "Mise a jour disponible"; t1.style.cssText = "font-size:13px;font-weight:600;color:#f0f0f0";
+  var t2 = document.createElement("div"); t2.textContent = "Nouvelle version de GymCoach"; t2.style.cssText = "font-size:11px;color:#666678";
+  info.appendChild(t1); info.appendChild(t2);
+  var btn = document.createElement("button"); btn.textContent = "OK";
+  btn.style.cssText = "background:#c8ff00;border:none;color:#030810;border-radius:10px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:700;flex-shrink:0";
+  btn.onclick = applyUpdate;
+  b.appendChild(ico); b.appendChild(info); b.appendChild(btn);
+  document.body.appendChild(b);
+  setTimeout(function() { if (b.parentNode) b.remove(); }, 15000);
+}
+
+function applyUpdate() {
+  navigator.serviceWorker.getRegistration().then(function(reg) {
+    if (reg && reg.waiting) { reg.waiting.postMessage("skipWaiting"); }
+    else { window.location.reload(true); }
+  });
 }
 
 // ══════════════════════════════════════════════

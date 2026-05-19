@@ -1,15 +1,15 @@
-const CACHE = 'gymcoach-v2';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'gymcoach-v1.4';
+const STATIC = ['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/manifest.json'];
 
-// Install — cache all assets
+// Install — cache only static assets (not index.html)
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
+    caches.open(CACHE).then(c => c.addAll(STATIC))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // take over immediately
 });
 
-// Activate — clean old caches
+// Activate — clear old caches
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -19,20 +19,33 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// Fetch — serve from cache first, then network
+// Fetch — NETWORK FIRST strategy
+// → Always tries network first (gets latest version)
+// → Falls back to cache only if offline
 self.addEventListener('fetch', e => {
-  // Don't cache ntfy.sh calls
-  if (e.request.url.includes('ntfy.sh')) return;
+  // Skip non-GET and cross-origin (ntfy, YouTube, ExerciseDB)
+  if (e.request.method !== 'GET') return;
+  if (!e.request.url.startsWith(self.location.origin)) return;
+
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/index.html')))
+    fetch(e.request)
+      .then(res => {
+        // Cache successful responses for offline fallback
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request)) // offline fallback
   );
 });
 
-// Push — receive push notification from server (future use)
+// Push notifications
 self.addEventListener('push', e => {
-  const data = e.data ? e.data.json() : { title: 'GymCoach', body: 'Rappel médicament 💊' };
+  const data = e.data ? e.data.json() : { title: 'GymCoach', body: 'Rappel medicament' };
   e.waitUntil(
-    self.registration.showNotification(data.title || 'GymCoach 💊', {
+    self.registration.showNotification(data.title || 'GymCoach', {
       body: data.body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
@@ -41,4 +54,9 @@ self.addEventListener('push', e => {
       tag: 'medoc'
     })
   );
+});
+
+// Message: force update
+self.addEventListener('message', e => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
