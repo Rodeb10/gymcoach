@@ -1,5 +1,5 @@
 [build]
-  publish = "/"
+  publish = "."
 
 [[headers]]
   for = "/index.html"
@@ -10,3 +10,8 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
