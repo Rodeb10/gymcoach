@@ -729,7 +729,7 @@ function renderProg(){
           <img id="edb-thumb-${day}-${i}"
             src="${IMG[ex.svg]||''}"
             alt="${ex.name}"
-            style="width:100%;height:100%;object-fit:cover;border-radius:11px;transition:opacity .3s;">
+            style="width:100%;height:100%;object-fit:cover;border-radius:11px;transition:all .4s;">
         </div>
         <div class="xinfo">
           <div class="xname" style="${nameStyle}">${ex.name}</div>
@@ -817,6 +817,29 @@ function renderProg(){
   // Update home today card
   document.getElementById('ht-day').textContent=`${p.tag.split('—')[0].trim()} — ${p.title}`;
   document.getElementById('ht-exos').textContent=`${p.cnt} · ${p.dur}`;
+  // Pre-load all exercise images in background
+  setTimeout(preloadExerciseImages, 100);
+}
+
+async function preloadExerciseImages() {
+  const data = await loadExerciseData();
+  if (!data) return;
+  const p = PROGS[day];
+  p.exos.forEach(function(ex, i) {
+    const exData = data[ex.svg];
+    if (!exData) return;
+    const imgUrl = exData.images && exData.images.length > 0 ? exData.images[0] : null;
+    if (!imgUrl) return;
+    // Update thumbnail
+    const thumb = document.getElementById('edb-thumb-' + day + '-' + i);
+    if (thumb) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function() { thumb.src = imgUrl; };
+      img.onerror = function() { /* keep SVG fallback */ };
+      img.src = imgUrl;
+    }
+  });
 }
 
 function toggle(i){
@@ -1116,8 +1139,8 @@ window.addEventListener('load', function() {
 });
 
 // App version & build info
-const APP_VERSION = '1.5.3';
-const BUILD_DATE  = '2026-05-19 · 21:47:24 UTC';
+const APP_VERSION = '1.5.4';
+const BUILD_DATE  = '2026-05-20 · 07:33:00 UTC';
 
 // Auto-detect shift from ISO week number
 // Odd week = morning (AM 6h-14h), Even week = afternoon (PM 14h-22h)
