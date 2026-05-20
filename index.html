@@ -15,7 +15,7 @@
 <meta name="description" content="Programme de sport personnalisé pour Romain — sport, hydratation, médicaments.">
 
 <!-- Manifest PWA -->
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/gymcoach/manifest.json">
 
 <!-- ═══ ICÔNE iOS (inline SVG → base64) ═══ -->
 <!-- Apple utilise ces balises pour l'icône sur l'écran d'accueil -->
@@ -1131,7 +1131,7 @@ window.addEventListener('load', function() {
 });
 
 // App version & build info
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 const BUILD_DATE  = '2026-05-19 · 21:47:24 UTC';
 
 // Auto-detect shift from ISO week number
@@ -1778,28 +1778,7 @@ function updateHomeWorkoutCard(){
 // ══════════════════════════════════════════════
 // PWA — MANIFEST INJECTION (évite un fichier séparé)
 // ══════════════════════════════════════════════
-const manifest = {
-  name: "GymCoach — Romain",
-  short_name: "GymCoach",
-  description: "Programme sport, hydratation & médicaments",
-  start_url: "/gymcoach/",
-  display: "standalone",
-  background_color: "#080810",
-  theme_color: "#080810",
-  orientation: "portrait",
-  scope: "/gymcoach/",
-  icons: [
-    {
-      src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23080810'/><text x='50%' y='54%' font-size='300' text-anchor='middle' dominant-baseline='middle'>%F0%9F%92%AA</text><text x='50%' y='88%' font-size='80' font-weight='700' font-family='system-ui' text-anchor='middle' fill='%23c8ff00'>GYMCOACH</text></svg>",
-      sizes: "512x512",
-      type: "image/svg+xml",
-      purpose: "any maskable"
-    }
-  ]
-};
-const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-const manifestURL = URL.createObjectURL(blob);
-document.querySelector('link[rel="manifest"]').href = manifestURL;
+// Manifest served as real file (manifest.json) — no blob needed for iOS PWA
 
 // Service Worker with auto-update detection
 if ("serviceWorker" in navigator && location.protocol === "https:") {
