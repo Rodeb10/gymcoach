@@ -566,45 +566,28 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
 // Style : trait blanc fin sur fond sombre, muscles = rouge vif
 // ══════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════
-// EXERCISEDB v1 FREE API — Dynamic GIF loader
+// EXERCISE DATA — static JSON hosted in repo
+// No CORS issues, always works, zero API dependency
 // ══════════════════════════════════════════════
-// ExerciseDB: try multiple endpoints with CORS fallback
-const EDB_ENDPOINTS = [
-  'https://exercisedb-api.vercel.app/api/v1',
-  'https://v1.exercisedb.io',
-  'https://exercisedb.dev/api/v1'
-];
-const edbCache = {};
+let exerciseData = null;
+
+async function loadExerciseData() {
+  if (exerciseData) return exerciseData;
+  try {
+    const res = await fetch('/gymcoach/exercises.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    exerciseData = await res.json();
+    return exerciseData;
+  } catch(e) {
+    console.log('Exercise data load failed:', e.message);
+    return null;
+  }
+}
 
 async function fetchExerciseGif(searchTerm, exerciseKey) {
-  if (edbCache[exerciseKey]) return edbCache[exerciseKey];
-  try {
-    const cached = sessionStorage.getItem('edb_' + exerciseKey);
-    if (cached) { edbCache[exerciseKey] = JSON.parse(cached); return edbCache[exerciseKey]; }
-  } catch(e) {}
-  for (const base of EDB_ENDPOINTS) {
-    try {
-      const url = base + '/exercises/name/' + encodeURIComponent(searchTerm) + '?limit=3&offset=0';
-      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      // Handle both array response and {data: [...]} response
-      const exercises = Array.isArray(data) ? data : (data.data || data.exercises || []);
-      if (exercises.length > 0) {
-        const ex = exercises[0];
-        const result = {
-          gifUrl: ex.gifUrl || ex.gif_url || null,
-          instructions: ex.instructions || ex.steps || [],
-          targetMuscles: ex.targetMuscles || ex.target_muscles || [],
-          secondaryMuscles: ex.secondaryMuscles || ex.secondary_muscles || []
-        };
-        edbCache[exerciseKey] = result;
-        try { sessionStorage.setItem('edb_' + exerciseKey, JSON.stringify(result)); } catch(e2) {}
-        return result;
-      }
-    } catch(e) { console.log('ExerciseDB ' + base + ':', e.message); }
-  }
-  return null;
+  const data = await loadExerciseData();
+  if (!data || !data[exerciseKey]) return null;
+  return data[exerciseKey];
 }
 
 function updateExerciseMedia(dayIdx, exoIdx, data) {
@@ -612,15 +595,17 @@ function updateExerciseMedia(dayIdx, exoIdx, data) {
   if (!data) { if (loader) loader.style.display='none'; return; }
   const bigGif = document.getElementById('edb-big-'+dayIdx+'-'+exoIdx);
   const thumb  = document.getElementById('edb-thumb-'+dayIdx+'-'+exoIdx);
-  if (data.gifUrl) {
+  // Use first image from images array (static JPG, no CORS issues)
+  const imgUrl = data.images && data.images.length > 0 ? data.images[0] : data.gifUrl;
+  if (imgUrl) {
     const img = new Image();
     img.onload = function() {
-      if (bigGif) bigGif.src = data.gifUrl;
-      if (thumb)  thumb.src  = data.gifUrl;
+      if (bigGif) { bigGif.src = imgUrl; bigGif.style.objectFit = 'contain'; }
+      if (thumb)  { thumb.src  = imgUrl; }
       if (loader) loader.style.display = 'none';
     };
     img.onerror = function() { if (loader) loader.style.display='none'; };
-    img.src = data.gifUrl;
+    img.src = imgUrl;
   } else { if (loader) loader.style.display='none'; }
   if (data.instructions && data.instructions.length > 0) {
     const instrEl = document.getElementById('edb-instr-'+dayIdx+'-'+exoIdx);
@@ -1131,7 +1116,7 @@ window.addEventListener('load', function() {
 });
 
 // App version & build info
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.5.3';
 const BUILD_DATE  = '2026-05-19 · 21:47:24 UTC';
 
 // Auto-detect shift from ISO week number
