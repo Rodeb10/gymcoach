@@ -568,7 +568,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;max
 // ══════════════════════════════════════════════
 // EXERCISEDB v1 FREE API — Dynamic GIF loader
 // ══════════════════════════════════════════════
-const EDB_BASE = 'https://v1.exercisedb.io';
+// ExerciseDB: try multiple endpoints with CORS fallback
+const EDB_ENDPOINTS = [
+  'https://exercisedb-api.vercel.app/api/v1',
+  'https://v1.exercisedb.io',
+  'https://exercisedb.dev/api/v1'
+];
 const edbCache = {};
 
 async function fetchExerciseGif(searchTerm, exerciseKey) {
@@ -577,19 +582,28 @@ async function fetchExerciseGif(searchTerm, exerciseKey) {
     const cached = sessionStorage.getItem('edb_' + exerciseKey);
     if (cached) { edbCache[exerciseKey] = JSON.parse(cached); return edbCache[exerciseKey]; }
   } catch(e) {}
-  try {
-    const url = EDB_BASE + '/exercises/name/' + encodeURIComponent(searchTerm) + '?limit=3&offset=0';
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data && data.length > 0) {
-      const ex = data[0];
-      const result = { gifUrl: ex.gifUrl||null, instructions: ex.instructions||[], targetMuscles: ex.targetMuscles||[], secondaryMuscles: ex.secondaryMuscles||[] };
-      edbCache[exerciseKey] = result;
-      try { sessionStorage.setItem('edb_' + exerciseKey, JSON.stringify(result)); } catch(e) {}
-      return result;
-    }
-  } catch(e) { console.log('ExerciseDB:', e.message); }
+  for (const base of EDB_ENDPOINTS) {
+    try {
+      const url = base + '/exercises/name/' + encodeURIComponent(searchTerm) + '?limit=3&offset=0';
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      // Handle both array response and {data: [...]} response
+      const exercises = Array.isArray(data) ? data : (data.data || data.exercises || []);
+      if (exercises.length > 0) {
+        const ex = exercises[0];
+        const result = {
+          gifUrl: ex.gifUrl || ex.gif_url || null,
+          instructions: ex.instructions || ex.steps || [],
+          targetMuscles: ex.targetMuscles || ex.target_muscles || [],
+          secondaryMuscles: ex.secondaryMuscles || ex.secondary_muscles || []
+        };
+        edbCache[exerciseKey] = result;
+        try { sessionStorage.setItem('edb_' + exerciseKey, JSON.stringify(result)); } catch(e2) {}
+        return result;
+      }
+    } catch(e) { console.log('ExerciseDB ' + base + ':', e.message); }
+  }
   return null;
 }
 
@@ -1117,7 +1131,7 @@ window.addEventListener('load', function() {
 });
 
 // App version & build info
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const BUILD_DATE  = '2026-05-19 · 21:47:24 UTC';
 
 // Auto-detect shift from ISO week number
@@ -1768,11 +1782,12 @@ const manifest = {
   name: "GymCoach — Romain",
   short_name: "GymCoach",
   description: "Programme sport, hydratation & médicaments",
-  start_url: "./",
+  start_url: "/gymcoach/",
   display: "standalone",
   background_color: "#080810",
   theme_color: "#080810",
   orientation: "portrait",
+  scope: "/gymcoach/",
   icons: [
     {
       src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23080810'/><text x='50%' y='54%' font-size='300' text-anchor='middle' dominant-baseline='middle'>%F0%9F%92%AA</text><text x='50%' y='88%' font-size='80' font-weight='700' font-family='system-ui' text-anchor='middle' fill='%23c8ff00'>GYMCOACH</text></svg>",
@@ -1788,7 +1803,7 @@ document.querySelector('link[rel="manifest"]').href = manifestURL;
 
 // Service Worker with auto-update detection
 if ("serviceWorker" in navigator && location.protocol === "https:") {
-  navigator.serviceWorker.register("/sw.js").then(function(reg) {
+  navigator.serviceWorker.register("/gymcoach/sw.js").then(function(reg) {
     document.addEventListener("visibilitychange", function() {
       if (!document.hidden) reg.update();
     });
